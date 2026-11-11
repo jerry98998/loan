@@ -112,7 +112,7 @@ tools/test-*.js       页面 / 小组件 / worker 的无浏览器测试
 ```bash
 node engine/loan.test.js     # 计算：59 passed
 node tools/test-web.js       # 页面：56 passed（Node 里用最小 DOM 垫片跑）
-node tools/test-widget.js    # 小组件：48 passed（Scriptable API 垫片）
+node tools/test-widget.js    # 小组件：50 passed（Scriptable API 垫片）
 node tools/test-worker.js    # 云同步：17 passed
 node tools/build.js          # 改完 engine/ 后重新内联进小组件
 ```

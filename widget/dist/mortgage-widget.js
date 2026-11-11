@@ -36,7 +36,7 @@ const CONFIG = {
 
 /* ---- 计算引擎（由 tools/build.js 自动内联，不要手改） ---- */
 // >>> ENGINE BEGIN
-    /* engine/loan.js · 构建于 2026-11-11 08:59:42 · 改引擎请改源文件再重新构建 */
+    /* engine/loan.js · 构建于 2026-11-11 09:26:10 · 改引擎请改源文件再重新构建 */
     /*!
      * loan.js — 房贷计算引擎
      * 支持：等额本息 / 等额本金 / 组合贷（多笔）/ 提前还款（缩期、降月供、结清）/ 利率调整（LPR 重定价）
@@ -728,7 +728,8 @@ if (!loaded.state) {
   if (!config.runsInWidget) w.presentMedium();
   Script.complete();
 } else {
-  const a = E.analyze(loaded.state, E.today());
+  // 和网页同一个口径：有手动「数据基准日」就按它算，否则按今天
+  const a = E.analyze(loaded.state, loaded.state.asOf || E.today());
   const w = build(a, family);
   Script.setWidget(w);
   if (!config.runsInWidget) {

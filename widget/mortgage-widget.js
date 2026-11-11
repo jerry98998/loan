@@ -248,7 +248,8 @@ if (!loaded.state) {
   if (!config.runsInWidget) w.presentMedium();
   Script.complete();
 } else {
-  const a = E.analyze(loaded.state, E.today());
+  // 和网页同一个口径：有手动「数据基准日」就按它算，否则按今天
+  const a = E.analyze(loaded.state, loaded.state.asOf || E.today());
   const w = build(a, family);
   Script.setWidget(w);
   if (!config.runsInWidget) {

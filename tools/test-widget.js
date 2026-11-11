@@ -185,6 +185,15 @@ async function caseOne(name, state, family) {
   await caseOne('带提前还款', WITH_PREPAY, 'medium');
   await caseOne('带利率调整+缩期', WITH_EVENTS, 'large');
 
+  // 手动「数据基准日」：小组件与网页同一口径
+  const FUTURE = JSON.parse(JSON.stringify(DEMO));
+  FUTURE.asOf = '2030-01-01';
+  const af = E.analyze(FUTURE, '2030-01-01');
+  const wf = await runWidget(FUTURE, 'medium');
+  const tf = collect(wf, []);
+  ok(tf.includes('截至 01-01'), '基准日: 头部显示 01-01');
+  ok(tf.includes(wan(af.totals.remainingPrincipal)), '基准日: 数字按 2030-01-01 算');
+
   // 空数据
   installGlobals('medium');
   captured = null;
