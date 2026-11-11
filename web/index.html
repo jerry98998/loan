@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="房贷">
+<meta name="theme-color" content="#070b14">
+<meta name="format-detection" content="telephone=no">
+<title>房贷看板</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow" id="asOfLabel">截至今天</div>
+      <h1 id="pageTitle">房贷看板</h1>
+    </div>
+    <button class="ghost-btn" data-action="reload" title="按当前日期重算">刷新</button>
+  </header>
+  <main id="view"></main>
+</div>
+
+<nav class="tabbar" id="tabbar">
+  <button data-tab="home" class="on">概览</button>
+  <button data-tab="plan">还款计划</button>
+  <button data-tab="config">贷款设置</button>
+  <button data-tab="data">数据同步</button>
+</nav>
+
+<div class="sheet-wrap" id="sheet" hidden>
+  <div class="sheet" id="sheetBody"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="../engine/loan.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

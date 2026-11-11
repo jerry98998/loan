@@ -1,0 +1,15 @@
+{
+  "name": "loan-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "iPhone 房贷看板：PWA 网页 + Scriptable 桌面小组件 + 可选 Cloudflare 同步",
+  "scripts": {
+    "build": "node tools/build.js",
+    "test": "node engine/loan.test.js && node tools/test-web.js && node tools/test-widget.js && node tools/test-worker.js",
+    "test:engine": "node engine/loan.test.js",
+    "test:web": "node tools/test-web.js",
+    "test:widget": "node tools/test-widget.js",
+    "test:worker": "node tools/test-worker.js"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #17181c;
+    font-family: -apple-system, "SF Pro Text", "Helvetica Neue", "Segoe UI", sans-serif;
+    padding: 36px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 22px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .w {
+    border-radius: 22px;
+    background: linear-gradient(135deg, #12203a 0%, #070b14 100%);
+    color: #e8eefc;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .w.small { width: 158px; height: 158px; padding: 12px; }
+  .w.medium { width: 338px; height: 158px; padding: 14px 16px; }
+  .w.large { width: 338px; height: 354px; padding: 14px 16px; }
+
+  .row { display: flex; align-items: center; }
+  .push { margin-left: auto; }
+  .mute { color: #8b9bb4; }
+  .mint { color: #3ddc97; }
+  .amber { color: #ffb454; }
+  .blue { color: #6aa6ff; }
+  .t10 { font-size: 10px; }
+  .t11 { font-size: 11px; }
+  .k { font-size: 10px; color: #8b9bb4; }
+
+  .big { font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+  .small .big { font-size: 22px; margin-top: 3px; }
+  .medium .big, .large .big { font-size: 27px; margin-top: 2px; }
+
+  .bar { height: 5px; border-radius: 2.5px; background: #1d2a44; overflow: hidden; margin-top: 5px; }
+  .bar i { display: block; height: 5px; border-radius: 2.5px; background: #3ddc97; }
+
+  .gap6 { height: 6px; }
+  .gap8 { height: 8px; }
+  .gap10 { height: 10px; }
+
+  .cols { display: flex; justify-content: space-between; }
+  .col .k { margin-bottom: 2px; }
+  .col b { font-size: 14px; font-weight: 700; }
+
+  .line { display: flex; align-items: center; font-size: 10px; margin-top: 6px; }
+  .line b { font-weight: 600; }
+
+  .dot { width: 6px; height: 6px; border-radius: 3px; margin-right: 6px; flex: 0 0 6px; }
+  .lr { display: flex; align-items: center; font-size: 11px; margin-top: 9px; }
+  .lr b { font-weight: 600; }
+  .lr .rate { margin-left: auto; font-size: 10px; color: #8b9bb4; }
+  .lr .bal { margin-left: 8px; }
+</style>
+</head>
+<body>
+
+<!-- 小号 -->
+<div class="w small">
+  <div class="row"><span class="t10 mute">剩余本金</span><span class="t10 mute push">截至 11-11</span></div>
+  <div class="big">¥93.58万</div>
+  <div class="bar"><i style="width:6.4%"></i></div>
+  <div class="row t10 mute" style="margin-top:4px"><span>已还 29/300 期 · 6.4%</span></div>
+  <div class="row" style="margin-top:6px;align-items:baseline">
+    <span class="t10 mute">本期&nbsp;</span><b class="mint" style="font-size:15px">¥4,954.45</b>
+  </div>
+</div>
+
+<!-- 中号 -->
+<div class="w medium">
+  <div class="row"><span class="t11 mute">剩余本金</span><span class="t10 mute push">截至 11-11</span></div>
+  <div class="big">¥93.58万</div>
+  <div class="bar"><i style="width:6.4%"></i></div>
+  <div class="row t10 mute" style="margin-top:4px"><span>已还 29/300 期 · 6.4%</span><span class="push">下次 11-20</span></div>
+  <div class="gap8"></div>
+  <div class="cols">
+    <div class="col"><div class="k">本期应还</div><b class="mint">¥4,954.45</b></div>
+    <div class="col"><div class="k">已还利息</div><b class="amber">¥8.13万</b></div>
+    <div class="col"><div class="k">剩余利息</div><b class="blue">¥40.69万</b></div>
+  </div>
+</div>
+
+<!-- 大号 -->
+<div class="w large">
+  <div class="row"><span class="t11 mute">剩余本金</span><span class="t10 mute push">截至 11-11</span></div>
+  <div class="big">¥93.58万</div>
+  <div class="bar"><i style="width:6.4%"></i></div>
+  <div class="row t10 mute" style="margin-top:4px"><span>已还 29/300 期 · 6.4%</span><span class="push">下次 11-20</span></div>
+  <div class="gap8"></div>
+  <div class="cols">
+    <div class="col"><div class="k">本期应还</div><b class="mint">¥4,954.45</b></div>
+    <div class="col"><div class="k">已还利息</div><b class="amber">¥8.13万</b></div>
+    <div class="col"><div class="k">剩余利息</div><b class="blue">¥40.69万</b></div>
+  </div>
+  <div class="gap10"></div>
+  <div class="row t10"><span class="mute">贷款总额</span><span class="push">¥100.00万</span></div>
+  <div class="row t10" style="margin-top:6px"><span class="mute">已还本息</span><span class="push">¥14.37万</span></div>
+  <div class="row t10" style="margin-top:6px"><span class="mute">剩余本息</span><span class="push">¥134.27万</span></div>
+  <div class="row t10" style="margin-top:6px"><span class="mute">全程利息</span><span class="push">¥48.63万</span></div>
+  <div class="row t10" style="margin-top:6px"><span class="mute">预计结清</span><span class="push">2049-05</span></div>
+  <div class="gap10"></div>
+  <div class="lr"><i class="dot" style="background:#3ddc97"></i>公积金贷<span class="rate">2.85%</span><span class="bal"><b>¥55.88万</b></span></div>
+  <div class="lr"><i class="dot" style="background:#6aa6ff"></i>商贷<span class="rate">4.20%</span><span class="bal"><b>¥37.70万</b></span></div>
+</div>
+
+</body>
+</html>

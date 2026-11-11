@@ -1,0 +1,9 @@
+name = "loan-sync"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# 先执行：npx wrangler kv namespace create LOAN_KV
+# 把输出里的 id 填到下面
+[[kv_namespaces]]
+binding = "LOAN_KV"
+id = "REPLACE_WITH_YOUR_KV_ID"
