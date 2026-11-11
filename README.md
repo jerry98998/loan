@@ -4,6 +4,9 @@
 
 不装 App、不做小程序 —— 一个网页（加到主屏就是全屏应用）+ 一个桌面小组件。
 
+> 在线版（已部署）：**https://jerry98998.github.io/loan/**
+> 源码：https://github.com/jerry98998/loan
+
 | 概览 | 还款计划 |
 | --- | --- |
 | ![概览](docs/img/home.png) | ![还款计划](docs/img/plan.png) |
@@ -17,16 +20,11 @@
 
 **② 放到主屏**（当成 App 用）
 
-托管到任意静态网站（推荐 GitHub Pages，免费）：
+已经部署好了：手机 Safari 打开 **https://jerry98998.github.io/loan/** → 分享 → **添加到主屏幕**。之后从图标打开就是全屏，没有地址栏，样式和字号都是照 iPhone 调的。
 
-```bash
-# 把整个仓库推到 GitHub，Settings → Pages → 部署分支 main / 根目录
-# 手机 Safari 打开 https://<你的用户名>.github.io/loan/web/
-```
+想自己再部署一份：把整个仓库推到 GitHub，Settings → Pages → 分支 `main` / 根目录 `/`。根目录的 `index.html` 只是一块跳板，会自动转到 `web/`。
 
-然后 Safari 分享 → **添加到主屏幕**。之后从图标打开就是全屏，没有地址栏，样式和字号都是照 iPhone 调的。
-
-> 注意要部署**整个仓库**，不只是 `web/`：页面要引用 `../engine/loan.js`（计算引擎）。
+> 要部署**整个仓库**，不只是 `web/`：页面要引用 `../engine/loan.js`（计算引擎）。
 > 本地双击 `web/index.html` 也能直接跑，就是这个目录结构。
 
 **③ 加桌面小组件**（可选，看一眼就知道还剩多少）
