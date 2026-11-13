@@ -9,6 +9,8 @@
     state: null,
     tab: 'home',
     planFilter: 'all',
+    kindFilter: 'all',
+    planPage: 0,
     draft: null,
     editing: null,
     isDemo: false
@@ -35,7 +37,8 @@
           rateChanges: [], prepayments: []
         }
       ],
-      sync: { url: '', token: '' }
+      sync: { url: '', token: '' },
+      github: { repo: '', path: 'state.json', branch: 'main', token: '' }
     };
   }
 
@@ -45,6 +48,7 @@
     out.name = out.name || '我的房贷';
     out.asOf = out.asOf || '';
     out.sync = out.sync || { url: '', token: '' };
+    out.github = out.github || { repo: '', path: 'state.json', branch: 'main', token: '' };
     out.loans = (Array.isArray(out.loans) ? out.loans : []).map(function (l, i) {
       return {
         id: l.id || ('loan-' + i + '-' + Math.random().toString(36).slice(2, 7)),
@@ -107,7 +111,23 @@
     toastTimer = setTimeout(function () { el.classList.remove('on'); }, 2000);
   }
 
-  function analysis() { return E.analyze(S.state, S.state.asOf || null); }
+  function analysis() {
+    var loans = S.state.loans;
+    if (S.kindFilter !== 'all') {
+      loans = loans.filter(function (l) { return (l.kind === '公积金' ? '公积金' : '商贷') === S.kindFilter; });
+    }
+    return E.analyze({ v: 1, name: S.state.name, asOf: S.state.asOf, loans: loans }, S.state.asOf || null);
+  }
+
+  var KIND_OPTS = [['all', '全部'], ['公积金', '公积金贷'], ['商贷', '商贷']];
+
+  function kindSelect() {
+    var h = '<select class="input kindsel" data-action="kind-filter">';
+    KIND_OPTS.forEach(function (o) {
+      h += '<option value="' + o[0] + '"' + (S.kindFilter === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+    });
+    return h + '</select>';
+  }
 
   /* ================================================================
    * 渲染入口
@@ -168,6 +188,9 @@
         '<b>示例数据</b>　点这里改成你自己的贷款 <span class="arr">›</span></button>';
     }
 
+    h += '<div class="filter-row"><span>统计范围</span>' + kindSelect() + '</div>';
+    if (!a.loans.length) return h + '<div class="empty">这个范围下没有贷款</div>';
+
     /* 主卡 */
     h += '<section class="card hero">' +
       '<div class="hero-top"><span class="label">剩余本金</span>' +
@@ -226,6 +249,8 @@
    * 还款计划
    * ================================================================ */
 
+  var PLAN_PER_PAGE = 30;
+
   function viewPlan(a) {
     if (!a.loans.length) return '<div class="empty">还没有贷款数据</div>';
 
@@ -234,19 +259,45 @@
       h += '<button class="chip ' + (S.planFilter === f[0] ? 'on' : '') + '" data-action="plan-filter" data-v="' + f[0] + '">' + f[1] + '</button>';
     });
     h += '</div>';
+    h += '<div class="filter-row"><span>范围</span>' + kindSelect() + '</div>';
 
-    a.loans.forEach(function (res) {
-      var s = res.stats;
+    var groups = a.loans.map(function (res) {
+      var list = res.rows.filter(function (r) {
+        if (S.planFilter === 'paid' && !r.paid) return false;
+        if (S.planFilter === 'future' && r.paid) return false;
+        if (S.planFilter === 'pre' && r.mode !== 'prepay') return false;
+        return true;
+      });
+      return { res: res, list: list };
+    });
+
+    var pages = 1;
+    groups.forEach(function (g) { pages = Math.max(pages, Math.ceil(g.list.length / PLAN_PER_PAGE)); });
+    if (S.planPage > pages - 1) S.planPage = pages - 1;
+    if (S.planPage < 0) S.planPage = 0;
+    var start = S.planPage * PLAN_PER_PAGE;
+
+    var pager = '';
+    if (pages > 1) {
+      pager = '<div class="pager">' +
+        '<button class="ghost-btn" data-action="plan-page" data-v="-1"' + (S.planPage <= 0 ? ' disabled' : '') + '>上一页</button>' +
+        '<span class="pginfo">第 ' + (S.planPage + 1) + ' / ' + pages + ' 页</span>' +
+        '<button class="ghost-btn" data-action="plan-page" data-v="1"' + (S.planPage >= pages - 1 ? ' disabled' : '') + '>下一页</button>' +
+        '</div>';
+      h += pager;
+    }
+
+    groups.forEach(function (g) {
+      var res = g.res, s = res.stats;
       h += '<div class="sec-title">' + esc(res.loan.name) + ' · ' + s.methodName + ' · ' + money(s.principal, 0) + '</div>';
       h += '<div class="tbl"><div class="thead"><span>期</span><span>日期</span><span>月供</span><span>利息</span><span>余额</span></div>';
 
-      var rows = res.rows;
-      for (var i = 0; i < rows.length; i++) {
-        var r = rows[i];
-        if (S.planFilter === 'paid' && !r.paid) continue;
-        if (S.planFilter === 'future' && r.paid) continue;
-        if (S.planFilter === 'pre' && r.mode !== 'prepay') continue;
-
+      var slice = g.list.slice(start, start + PLAN_PER_PAGE);
+      if (!slice.length) {
+        h += '<div class="tr"><span class="empty-row">这个筛选下没有记录</span></div>';
+      }
+      for (var i = 0; i < slice.length; i++) {
+        var r = slice[i];
         var cls = r.paid ? '' : 'future';
         if (!r.paid && r.p === s.periodsPaid + 1) cls += ' now';
         h += '<div class="tr ' + cls + '">' +
@@ -263,6 +314,10 @@
       }
       h += '</div>';
     });
+
+    if (pages > 1) {
+      h += pager;
+    }
 
     h += '<p class="hint">月供 = 当期本金 + 利息；余额为当期还款后的剩余本金。提前还款记在「还款日 ≥ 提前还款日」的那一期之后。</p>';
     return h;
@@ -321,8 +376,9 @@
   function viewData(a) {
     var h = '';
     var sync = S.state.sync || { url: '', token: '' };
+    var g = S.state.github || { repo: '', path: 'state.json', branch: 'main', token: '' };
     var base = (sync.url || '').replace(/\/+$/, '');
-    var widgetUrl = base ? base + '/api/state' : '（填写同步地址后生成）';
+    var widgetUrl = base ? base + '/api/state' : '（填 GitHub 仓库或 Cloudflare 地址后生成）';
 
     h += '<div class="card"><h2>备份与恢复</h2>' +
       '<div class="inline">' +
@@ -334,7 +390,25 @@
       '<input type="file" id="fileInput" accept=".json,application/json" style="display:none">' +
       '</div>';
 
-    h += '<div class="card"><h2>云同步（可选，小组件需要）</h2>' +
+    h += '<div class="card"><h2>GitHub 同步（可选，私有仓库）</h2>' +
+      '<div class="field"><label>仓库</label>' +
+      '<input class="input" data-cfg="github.repo" placeholder="用户名/仓库名，如 jerry98998/loan-data" value="' + esc(g.repo) + '"></div>' +
+      '<div class="inline">' +
+      '<div class="field"><label>文件路径</label>' +
+      '<input class="input" data-cfg="github.path" placeholder="state.json" value="' + esc(g.path) + '"></div>' +
+      '<div class="field"><label>分支</label>' +
+      '<input class="input" data-cfg="github.branch" placeholder="main" value="' + esc(g.branch) + '"></div>' +
+      '</div>' +
+      '<div class="field"><label>访问令牌</label>' +
+      '<input class="input" type="password" data-cfg="github.token" placeholder="github_pat_…" value="' + esc(g.token) + '"></div>' +
+      '<div class="inline">' +
+      '<button class="ghost-btn" data-action="gh-push">上传到 GitHub</button>' +
+      '<button class="ghost-btn" data-action="gh-pull">从 GitHub 拉取</button>' +
+      '</div>' +
+      '<p class="hint">用<b>私有</b>仓库存数据，别用公开仓库（金额会留在 git 历史里）。令牌用 fine-grained PAT，只勾这一个仓库的 <code>Contents: Read and write</code>；它只存在这台手机的浏览器里，不会写进导出文件。填好后小组件读同一个文件，自动跟着更新。</p>' +
+      '</div>';
+
+    h += '<div class="card"><h2>云同步 · Cloudflare（可选）</h2>' +
       '<div class="field"><label>同步地址</label>' +
       '<input class="input" data-cfg="sync.url" placeholder="https://loan-sync.xxx.workers.dev" value="' + esc(sync.url) + '"></div>' +
       '<div class="field"><label>访问令牌</label>' +
@@ -343,16 +417,16 @@
       '<button class="ghost-btn" data-action="push">上传到云端</button>' +
       '<button class="ghost-btn" data-action="pull">从云端拉取</button>' +
       '</div>' +
-      '<p class="hint">不用服务器也能用：这个页面 + 导出的 JSON 就够了。想要小组件自动更新，再花 5 分钟部署 <code>worker/</code>（Cloudflare 免费额度足够）。</p>' +
+      '<p class="hint">不想把数据放 GitHub 的替代方案：花 5 分钟部署 <code>worker/</code>（Cloudflare 免费额度足够），小组件改填这个地址。</p>' +
       '</div>';
 
     h += '<div class="card"><h2>iPhone 小组件</h2>' +
       '<button class="btn-primary" data-action="widget-config" style="margin-bottom:10px">复制小组件配置</button>' +
       '<div class="rows">' +
-      '<div class="row"><span class="k">数据地址</span><span class="v" style="font-size:12px;word-break:break-all">' + esc(widgetUrl) + '</span></div>' +
-      '<div class="row"><span class="k">访问令牌</span><span class="v" style="font-size:12px">' + (sync.token ? '已设置' : '未设置') + '</span></div>' +
+      '<div class="row"><span class="k">数据地址</span><span class="v" style="font-size:12px;word-break:break-all">' + esc(g.repo ? ('GitHub: ' + g.repo + ' / ' + g.path) : widgetUrl) + '</span></div>' +
+      '<div class="row"><span class="k">访问令牌</span><span class="v" style="font-size:12px">' + ((g.repo ? g.token : sync.token) ? '已设置' : '未设置') + '</span></div>' +
       '</div>' +
-      '<p class="hint">零服务器用法：点上面按钮复制，粘到 <code>widget/mortgage-widget.js</code> 开头的 <code>CONFIG.state</code>，整个文件粘进 Scriptable 即可。想让小组件自动跟着页面变，再部署 <code>worker/</code>，把地址和令牌填进 <code>CONFIG.remote</code>。</p>' +
+      '<p class="hint">零服务器用法：点上面按钮复制，粘到 <code>widget/mortgage-widget.js</code> 开头的 <code>CONFIG.state</code>，整个文件粘进 Scriptable 即可。想让小组件自动跟着页面变，在上面的 GitHub 卡片里填好仓库和令牌，再把同样四项填进 <code>CONFIG.remote</code>。</p>' +
       '</div>';
 
     h += '<div class="card"><h2>重置</h2>' +
@@ -614,7 +688,10 @@
       try {
         var st = JSON.parse(String(fr.result));
         if (!st || !Array.isArray(st.loans)) throw new Error('不是房贷看板的数据文件');
+        var keep = { sync: S.state.sync, github: S.state.github };
         S.state = normState(st);
+        S.state.sync = keep.sync;
+        S.state.github = keep.github;
         S.isDemo = false;
         persist();
         render();
@@ -651,7 +728,10 @@
       return r.json();
     }).then(function (st) {
       if (!st || !Array.isArray(st.loans)) throw new Error('云端数据格式不对');
+      var keep = { sync: S.state.sync, github: S.state.github };
       S.state = normState(st);
+      S.state.sync = keep.sync;
+      S.state.github = keep.github;
       S.isDemo = false;
       persist();
       render();
@@ -661,11 +741,126 @@
     });
   }
 
+  /* ---- GitHub 同步（Contents API） ---- */
+
+  function ghCfg() {
+    if (!S.state.github) S.state.github = { repo: '', path: 'state.json', branch: 'main', token: '' };
+    return S.state.github;
+  }
+
+  function b64encode(str) {
+    var bytes = new TextEncoder().encode(str), bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+
+  function b64decode(b64) {
+    var bin = atob(String(b64 || '').replace(/\s+/g, ''));
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  function ghErr(r, text) {
+    var map = {
+      401: '令牌无效或过期',
+      403: '权限不足（token 要有 Contents 读写）或触发限流',
+      404: '仓库/分支/文件不存在，或 token 没有这个私有仓库的权限',
+      409: '文件刚被改过，再点一次',
+      422: '分支名或路径不对'
+    };
+    var msg = map[r.status] || ('HTTP ' + r.status);
+    if (text && text.length < 160) msg += ' — ' + text;
+    return msg;
+  }
+
+  function ghUrl(g, withRef) {
+    var p = String(g.path || 'state.json').replace(/^\/+/, '');
+    var u = 'https://api.github.com/repos/' + String(g.repo || '').trim() + '/contents/' + p;
+    return withRef ? (u + '?ref=' + encodeURIComponent(g.branch || 'main')) : u;
+  }
+
+  function ghHeaders(g) {
+    return {
+      'Authorization': 'Bearer ' + String(g.token || '').trim(),
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    };
+  }
+
+  function ghCheck(g) {
+    if (!/^[^\s\/]+\/[^\s\/]+$/.test(String(g.repo || '').trim())) { toast('仓库要写成 用户名/仓库名'); return false; }
+    if (!String(g.token || '').trim()) { toast('先填访问令牌'); return false; }
+    return true;
+  }
+
+  function ghGetSha(g) {
+    return fetch(ghUrl(g, true), { headers: ghHeaders(g) }).then(function (r) {
+      if (r.status === 404) return null;
+      if (!r.ok) return r.text().then(function (t) { throw new Error(ghErr(r, t)); });
+      return r.json().then(function (j) { return j.sha || null; });
+    });
+  }
+
+  function ghPush() {
+    var g = ghCfg();
+    if (!ghCheck(g)) return;
+    var body = {
+      message: '更新房贷数据 ' + new Date().toISOString().slice(0, 16).replace('T', ' ') + 'Z',
+      content: b64encode(JSON.stringify(payload(), null, 2)),
+      branch: g.branch || 'main'
+    };
+    toast('正在上传…');
+    ghGetSha(g).then(function (sha) {
+      if (sha) body.sha = sha;
+      var headers = ghHeaders(g);
+      headers['Content-Type'] = 'application/json';
+      return fetch(ghUrl(g), { method: 'PUT', headers: headers, body: JSON.stringify(body) });
+    }).then(function (r) {
+      if (!r.ok) return r.text().then(function (t) { throw new Error(ghErr(r, t)); });
+      return r.json();
+    }).then(function (j) {
+      var sha = (j && j.commit && j.commit.sha) || '';
+      toast('已上传' + (sha ? '（' + sha.slice(0, 7) + '）' : ''));
+    }).catch(function (err) {
+      toast('上传失败：' + err.message);
+    });
+  }
+
+  function ghPull() {
+    var g = ghCfg();
+    if (!ghCheck(g)) return;
+    toast('正在拉取…');
+    fetch(ghUrl(g, true), { headers: ghHeaders(g) }).then(function (r) {
+      if (!r.ok) return r.text().then(function (t) { throw new Error(ghErr(r, t)); });
+      return r.json();
+    }).then(function (j) {
+      var st = JSON.parse(b64decode(j.content));
+      if (!st || !Array.isArray(st.loans)) throw new Error('文件里不是房贷数据');
+      var keep = { sync: S.state.sync, github: S.state.github };
+      S.state = normState(st);
+      S.state.sync = keep.sync;
+      S.state.github = keep.github;
+      S.isDemo = false;
+      persist();
+      render();
+      toast('已从 GitHub 拉取 ' + S.state.loans.length + ' 笔贷款');
+    }).catch(function (err) {
+      toast('拉取失败：' + err.message);
+    });
+  }
+
   function doAction(act, ds) {
     if (act === 'add-loan') return openEditor(null);
     if (act === 'edit-loan') return openEditor(ds.id);
     if (act === 'goto-config') return setTab('config');
-    if (act === 'plan-filter') { S.planFilter = ds.v; return render(); }
+    if (act === 'plan-filter') { S.planFilter = ds.v; S.planPage = 0; return render(); }
+    if (act === 'plan-page') {
+      S.planPage = Math.max(0, S.planPage + parseInt(ds.v, 10));
+      render();
+      if (typeof window.scrollTo === 'function') window.scrollTo(0, 0);
+      return;
+    }
     if (act === 'reload') { render(); return toast('已按当前日期重算'); }
     if (act === 'export') return exportJson();
     if (act === 'import') return $('fileInput') && $('fileInput').click();
@@ -677,6 +872,8 @@
     }
     if (act === 'push') return pushCloud();
     if (act === 'pull') return pullCloud();
+    if (act === 'gh-push') return ghPush();
+    if (act === 'gh-pull') return ghPull();
     if (act === 'widget-config') {
       navigator.clipboard.writeText(JSON.stringify(payload()))
         .then(function () { toast('已复制，粘到脚本的 CONFIG.state'); })
@@ -713,6 +910,12 @@
     });
 
     document.addEventListener('change', function (e) {
+      if (e.target.getAttribute && e.target.getAttribute('data-action') === 'kind-filter') {
+        S.kindFilter = e.target.value;
+        S.planPage = 0;
+        render();
+        return;
+      }
       var cfg = e.target.getAttribute && e.target.getAttribute('data-cfg');
       if (cfg === 'asOf') render();
       if (cfg === 'sync.url') render();

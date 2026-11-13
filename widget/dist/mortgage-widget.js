@@ -5,8 +5,9 @@
  *   1. App Store 装 Scriptable（免费）
  *   2. 新建脚本，把本文件全部内容粘进去
  *   3. 改下面 CONFIG：
- *        · 零服务器：把网页「数据同步 → 复制小组件配置」的内容粘到 CONFIG.state
- *        · 有 Cloudflare Worker：填 CONFIG.remote.url / token，state 可留 null
+ *        · 零服务器：把网页「数据 → 复制小组件配置」的内容粘到 CONFIG.state
+ *        · 用 GitHub 私有仓库存数据：填 CONFIG.remote.repo / token（网页里点「上传到 GitHub」）
+ *        · 用 Cloudflare Worker：填 CONFIG.remote.url / token
  *   4. 长按桌面 → 左上角 + → Scriptable → 选本脚本 → 选小/中/大
  *
  * 说明：计算全部在本地完成（引擎已内联），不联网也能用；
@@ -20,10 +21,17 @@ const CONFIG = {
   // 本地数据（把网页「复制小组件配置」的结果粘在这里，形如 {"loans":[...]}）
   state: null,
 
-  // 云端数据（可选）。填了地址就优先读云端，失败自动回退到 state
+  // 云端数据（可选）。填了 repo 或 url 就优先读云端，失败自动回退到本地缓存 / state
   remote: {
+    // ① 用 GitHub 私有仓库存数据（网页「GitHub 同步」里上传的那个文件）
+    repo: '',     // 例：jerry98998/loan-data
+    path: 'state.json',
+    branch: 'main',
+    token: '',    // fine-grained PAT，只需 Contents: Read
+
+    // ② 或者用 Cloudflare Worker（worker/ 目录）
     url: '',      // 例：https://loan-sync.xxx.workers.dev
-    token: '',    // 和 worker 里设置的 TOKEN 一致
+    // 注：GitHub 和 Worker 的 token 不是一个东西，只填你要用的那一种
   },
 
   // 点小组件要打开的网址（可选，比如部署在 GitHub Pages 的看板）
@@ -36,7 +44,7 @@ const CONFIG = {
 
 /* ---- 计算引擎（由 tools/build.js 自动内联，不要手改） ---- */
 // >>> ENGINE BEGIN
-    /* engine/loan.js · 构建于 2026-11-11 09:26:10 · 改引擎请改源文件再重新构建 */
+    /* engine/loan.js · 构建于 2026-11-13 01:42:47 · 改引擎请改源文件再重新构建 */
     /*!
      * loan.js — 房贷计算引擎
      * 支持：等额本息 / 等额本金 / 组合贷（多笔）/ 提前还款（缩期、降月供、结清）/ 利率调整（LPR 重定价）
@@ -279,7 +287,7 @@ const CONFIG = {
         var asOfT = asOf.getTime();
         var rows = sim.rows;
         var paidPrincipal = 0, paidInterest = 0, paidPayment = 0;
-        var remainPrincipal = 0, remainInterest = 0, remainPayment = 0;
+        var remainInterest = 0, remainPayment = 0;
         var next = null, paidCount = 0;
         var i, r;
 
@@ -288,16 +296,30 @@ const CONFIG = {
           r.paid = parseDate(r.date).getTime() <= asOfT;
           if (r.paid) {
             paidCount += 1;
-            paidPrincipal += r.principal + r.prepay;
+            paidPrincipal += r.principal;
             paidInterest += r.interest;
-            paidPayment += r.payment + r.prepay;
+            paidPayment += r.payment;
           } else {
-            remainPrincipal += r.principal;
             remainInterest += r.interest;
             remainPayment += r.payment;
             if (!next) next = r;
           }
         }
+
+        // 已发生的提前还款：按提前还款日判断，不等那一期还款日
+        var paidPrepay = 0;
+        for (i = 0; i < rows.length; i++) {
+          r = rows[i];
+          if (r.prepay > 0) {
+            var ppDate = parseDate(r.prepayDate);
+            if (ppDate && ppDate.getTime() <= asOfT) {
+              paidPrepay += r.prepay;
+              paidPayment += r.prepay;
+            }
+          }
+        }
+        paidPrincipal += paidPrepay;
+        var remainPrincipal = Math.max(0, sim.principal0 - paidPrincipal);
 
         // 已计提但未到还款日的利息（按天折算当期利息）
         var accrued = 0;
@@ -436,11 +458,11 @@ const CONFIG = {
           next = { date: nextDate, amount: 0, principal: 0, interest: 0, items: [] };
           for (var n = 0; n < outLoans.length; n++) {
             var n2 = outLoans[n].stats.nextPayment;
-            if (n2 && n2.date === nextDate) {
+            if (n2) {
               next.amount += n2.payment;
               next.principal += n2.principal;
               next.interest += n2.interest;
-              next.items.push({ name: outLoans[n].loan.name, amount: n2.payment });
+              next.items.push({ name: outLoans[n].loan.name, amount: n2.payment, date: n2.date });
             }
           }
         }
@@ -523,6 +545,30 @@ const E = (typeof LoanEngine !== 'undefined') ? LoanEngine : globalThis.LoanEngi
 /* ---------------- 取数据 ---------------- */
 const CACHE_PATH = 'mortgage-widget-cache.json';
 
+/* 从 GitHub 私有仓库（Contents API）或 Cloudflare Worker 取同一份 JSON */
+async function fetchRemote(remote) {
+  if (remote.repo) {
+    const path = String(remote.path || 'state.json').replace(/^\/+/, '');
+    const url = 'https://api.github.com/repos/' + remote.repo.trim() + '/contents/' + path +
+                '?ref=' + encodeURIComponent(remote.branch || 'main');
+    const req = new Request(url);
+    req.timeoutInterval = 15;
+    req.headers = {
+      Authorization: 'Bearer ' + String(remote.token || '').trim(),
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    };
+    const file = await req.loadJSON();
+    if (!file || !file.content) throw new Error('github: empty file');
+    return JSON.parse(Data.fromBase64String(String(file.content).replace(/\s+/g, '')).toRawString());
+  }
+
+  const req = new Request(remote.url.replace(/\/+$/, '') + '/api/state');
+  req.timeoutInterval = 12;
+  if (remote.token) req.headers = { Authorization: 'Bearer ' + remote.token };
+  return req.loadJSON();
+}
+
 async function loadState() {
   const fm = FileManager.local();
   let cached = null;
@@ -533,12 +579,9 @@ async function loadState() {
   } catch (e) { cached = null; }
 
   const remote = CONFIG.remote || {};
-  if (remote.url) {
+  if (remote.repo || remote.url) {
     try {
-      const req = new Request(remote.url.replace(/\/+$/, '') + '/api/state');
-      req.timeoutInterval = 12;
-      if (remote.token) req.headers = { Authorization: 'Bearer ' + remote.token };
-      const st = await req.loadJSON();
+      const st = await fetchRemote(remote);
       if (st && Array.isArray(st.loans)) {
         fm.writeString(fm.joinPath(fm.documentsDirectory(), CACHE_PATH), JSON.stringify(st));
         return { state: st, source: '云端' };

@@ -146,19 +146,43 @@ ok(home.includes('<span class="dec">.' + heroParts[1] + '</span>'), '主卡显�
 
 section('2. 还款计划');
 M.setTab('plan');
+const PER = 30;
+const PAGES = Math.ceil(300 / PER);
 const plan = view();
-eq(count(plan, '<div class="tr'), 600, '两笔共 600 期（300 × 2）');
+eq(count(plan, '<div class="tr'), PER * 2, '首页每笔 ' + PER + ' 期（2 × ' + PER + '）');
+ok(plan.includes('第 1 / ' + PAGES + ' 页'), '分页信息 1/' + PAGES);
 eq(count(plan, 'class="pre-note"'), 0, '无提前还款时不显示标记');
 ok(count(plan, 'class="chip') >= 4, '四个筛选 chip');
+ok(count(plan, 'class="pager"') === 2, '顶部和底部各有一个分页条');
+
+fireClick({ 'data-action': 'plan-page', 'data-v': '1' });
+eq(count(view(), '<div class="tr'), PER * 2, '翻到第 2 页仍是 ' + PER * 2 + ' 行');
+ok(view().includes('第 2 / ' + PAGES + ' 页'), '第 2 页分页信息');
+for (let i = 1; i < PAGES; i++) fireClick({ 'data-action': 'plan-page', 'data-v': '1' });
+const last = view();
+eq(count(last, '<div class="tr'), PER * 2, '最后一页 ' + PER * 2 + ' 行');
+ok(last.includes('第 ' + PAGES + ' / ' + PAGES + ' 页'), '最后一页分页信息');
+ok(last.includes('data-v="1" disabled'), '末页「下一页」禁用');
+ok(last.includes('data-v="-1" disabled') === false, '末页「上一页」可用');
+
+for (let i = 1; i <= PAGES; i++) fireClick({ 'data-action': 'plan-page', 'data-v': '-1' });
+const first = view();
+eq(count(first, '<div class="tr'), PER * 2, '回到第 1 页');
+ok(first.includes('data-v="-1" disabled'), '首页「上一页」禁用');
+ok(first.includes('<span class="p">1</span>'), '首页从第 1 期开始');
 
 fireClick({ 'data-action': 'plan-filter', 'data-v': 'future' });
 const future = count(view(), '<div class="tr');
-ok(future > 0 && future < 600, '筛选「未还」生效', future);
+eq(future, PER * 2, '筛选「未还」首页 ' + PER * 2 + ' 行');
 const paidRows = M.analysis().loans.reduce((s, x) => s + x.stats.periodsPaid, 0);
-eq(future, 600 - paidRows, '未还行数 = 总行数 - 已还行数');
+const futureRows = M.analysis().loans.reduce((s, x) => s + x.stats.periodsLeft, 0);
+eq(futureRows, 600 - paidRows, '未还期数 = 总期数 - 已还期数');
+ok(view().includes('第 1 / ' + Math.ceil(271 / PER) + ' 页'), '未还筛选分页信息');
+ok(view().includes('data-action="plan-filter" data-v="future"') && view().includes('chip on'), '未还 chip 高亮');
 
 fireClick({ 'data-action': 'plan-filter', 'data-v': 'paid' });
 eq(count(view(), '<div class="tr'), paidRows, '筛选「已还」生效');
+ok(!view().includes('pginfo'), '已还结果不足一页时不显示分页');
 
 fireClick({ 'data-action': 'plan-filter', 'data-v': 'all' });
 

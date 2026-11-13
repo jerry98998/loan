@@ -34,26 +34,44 @@
 3. 网页 → 「数据同步」→ 点 **复制小组件配置**，粘到脚本开头的 `CONFIG.state`
 4. 长按桌面 → 左上角 `+` → Scriptable → 选小/中/大号
 
-想让小组件自动跟着网页更新，再花 5 分钟部署 `worker/`（Cloudflare，免费），把地址和令牌填进脚本的 `CONFIG.remote`，此后页面点「上传到云端」即可，小组件自己会拉。
+这样是「静态快照」：改完贷款再复制一次即可。想让它自动跟着网页变，见下面「多设备 / 自动更新」。
 
 ![小组件](docs/img/widget.png)
 
 > 图里是三种尺寸的**效果示意**（按同样的字号和版式用 HTML 复刻，不是真机截图）。小号只看剩余本金；中号加本期应还、已还利息、剩余利息；大号再加已还本息、剩余本息、全程利息、预计结清和每笔明细。
 
+## 多设备 / 自动更新（GitHub 私有仓库）
+
+网页和小组件都只把这一个 JSON 当作数据源，所以「同步」就是让两边读同一个文件。
+
+1. 建一个**私有**仓库（比如 `你的名字/loan-data`），里面什么都不用放。
+2. 建一个 fine-grained token：Settings → Developer settings → Personal access tokens → **Fine-grained tokens** → 只选这一个仓库，权限只勾 **Contents: Read and write**。
+3. 网页「数据同步 → GitHub 同步」填：仓库 `用户名/仓库名`、文件路径 `state.json`、分支 `main`、token → 点 **上传到 GitHub**。
+4. 小组件脚本开头的 `CONFIG.remote` 填同样四项（`repo` / `path` / `branch` / `token`），小组件就会读这个文件。
+
+之后每次改完贷款，点一下「上传到 GitHub」；小组件按 iOS 的刷新节奏（大约几小时）自动更新，不用重装脚本。
+
+> 一定用**私有**仓库：公开仓库里的金额会留在 git 历史里，删掉也收不回来。token 只存在这台手机的浏览器 / Scriptable 里，不会被写进导出文件。
+
 ## 能看什么
 
 - **剩余本金**：真正还没还的钱，配进度条和「已还 29/300 期」
-- **本期应还**：下一次要还多少、几号还
-- **已还本息**：本金 / 利息分别是多少（组合贷自动合并）
+- **本期应还**：下一次要还多少、几号还（组合贷是各笔之和）
+- **已还本息**：本金 / 利息分别是多少（组合贷自动合并，含已还的提前还款）
 - **已产生利息**：含当月已计提、还没到还款日的那部分
 - **剩余本息**：未来还要掏多少钱，含利息
 - **全程概览**：贷款总额、全程利息、还款总额、预计结清年月
+- **统计范围**：概览和还款计划都能切「全部 / 公积金 / 商贷」，所有数字按所选重算
 - **分笔明细**：公积金 + 商贷各自剩余、下期应还、已还期数、已付利息
-- **还款计划**：每一期的月供 / 利息 / 余额，可筛「已还 / 未还 / 提前还款」
+- **还款计划**：每 30 期一页，可翻页，可筛「已还 / 未还 / 提前还款」
 
 | 提前还款 | 编辑贷款 |
 | --- | --- |
 | ![提前还款](docs/img/prepay.png) | ![编辑](docs/img/editor.png) |
+
+| 贷款设置 | 数据同步 |
+| --- | --- |
+| ![设置](docs/img/config.png) | ![同步](docs/img/data.png) |
 
 ## 怎么记数据（关键设计）
 
@@ -80,23 +98,25 @@
 | 等额本金 | 每期本金 = P/n，利息 = 剩余本金 × r |
 | 已还期数 | 还款日 ≤ 基准日的期数（还款日当天算已还） |
 | 已产生利息 | 已还各期利息 + 当期按天折算的已计提利息 |
-| 提前还款 | 记在「还款日 ≥ 提前还款日」的那一期之后，当期先照常还月供 |
+| 提前还款 | 记在「还款日 ≥ 提前还款日」的那一期之后，当期先照常还月供；**当天就计入已还本息**（所以 已还 + 剩余 = 总额） |
+| 本期应还（组合贷） | 各笔下一期月供之和；日期取最早的那笔 |
+| 统计范围 | 先按 公积金 / 商贷 过滤贷款，再跑一遍完整计算，不是简单按比例拆分 |
 | 省下的利息 | 有提前还款时，再跑一遍「不提前还」的基线做差 |
 
-引擎有 59 条断言覆盖：100 万 / 4.9% / 30 年月供 5307.27、总利息 910614.92、等额本金首期 6861.11、提前 20 万缩期 360→245 期、零利率、31 号顺延到 2 月 29 日等。
+引擎有 66 条断言覆盖：100 万 / 4.9% / 30 年月供 5307.27、总利息 910614.92、等额本金首期 6861.11、提前 20 万缩期 360→245 期、不同还款日的组合贷合并、提前还款当天计入已还本息、零利率、31 号顺延到 2 月 29 日等。
 
 ## 目录
 
 ```
 engine/loan.js        计算引擎（UMD，浏览器 / Node / Scriptable 通用，纯函数零依赖）
-engine/loan.test.js   59 条断言
+engine/loan.test.js   66 条断言
 web/index.html        页面
 web/app.js            交互 + 渲染（无框架，localStorage）
 web/style.css         深色移动端样式
 web/manifest.webmanifest, icon-*.png   PWA 用
 widget/mortgage-widget.js       小组件模板（含引擎内联标记）
 widget/dist/mortgage-widget.js  构建产物，粘进 Scriptable 的就是它
-worker/               Cloudflare Worker + KV 云同步（可选）
+worker/               Cloudflare Worker + KV 云同步（可选，GitHub 同步之外的备选）
 tools/build.js        把引擎内联进小组件
 tools/test-*.js       页面 / 小组件 / worker 的无浏览器测试
 ```
@@ -105,16 +125,19 @@ tools/test-*.js       页面 / 小组件 / worker 的无浏览器测试
 
 - 默认只在**这台手机的浏览器**里（localStorage），不上传任何地方。
 - 「导出 JSON」得到一份完整备份；换手机就「导入 JSON」。
-- 想要多设备 + 小组件自动更新，再开 `worker/`（自己的一台 Cloudflare Worker，数据在你自己的 KV 里）。
+- 想多设备 + 小组件自动更新：填「GitHub 同步」，数据存进你自己的**私有**仓库（推荐），见上文。
+- 不想用 GitHub：`worker/` 里有一个 Cloudflare Worker + KV 的等价实现（免费额度足够）。
 
 ## 开发
 
 ```bash
-node engine/loan.test.js     # 计算：59 passed
-node tools/test-web.js       # 页面：56 passed（Node 里用最小 DOM 垫片跑）
-node tools/test-widget.js    # 小组件：50 passed（Scriptable API 垫片）
+node engine/loan.test.js     # 计算：66 passed
+node tools/test-web.js       # 页面：70 passed（Node 里用最小 DOM 垫片跑）
+node tools/test-widget.js    # 小组件：52 passed（Scriptable API 垫片）
 node tools/test-worker.js    # 云同步：17 passed
 node tools/build.js          # 改完 engine/ 后重新内联进小组件
 ```
+
+`tools/test-widget.js` 会 mock 掉 `Request`，所以 GitHub 读取那条路径也能在本地验证。
 
 更多设计取舍见 [docs/方案.md](docs/方案.md)。

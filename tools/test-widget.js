@@ -81,11 +81,20 @@ function installGlobals(family) {
     complete: () => {},
   };
   globalThis.config = { runsInWidget: true, widgetFamily: family || 'medium' };
-  globalThis.Request = function () {
+  globalThis.Request = function (url) {
+    this.url = url;
     this.headers = {};
-    this.loadJSON = async () => { throw new Error('no network in test'); };
+    this.loadJSON = async () => {
+      if (GH_REPLY && String(url).indexOf('api.github.com') >= 0) return GH_REPLY;
+      throw new Error('no network in test');
+    };
+  };
+  globalThis.Data = {
+    fromBase64String: (s) => ({ toRawString: () => Buffer.from(String(s), 'base64').toString('utf8') }),
   };
 }
+
+let GH_REPLY = null;
 
 function collect(node, out) {
   if (!node || typeof node !== 'object') return out;
@@ -129,9 +138,10 @@ function ok(cond, msg) {
   if (cond) { pass += 1; } else { fails.push(msg); }
 }
 
-async function runWidget(state, family) {
+async function runWidget(state, family, patches) {
   const src = fs.readFileSync(SRC, 'utf8');
-  const patched = src.replace('state: null,', 'state: ' + JSON.stringify(state) + ',');
+  let patched = src.replace('state: null,', 'state: ' + JSON.stringify(state) + ',');
+  (patches || []).forEach(function (p) { patched = patched.split(p[0]).join(p[1]); });
   if (patched === src) throw new Error('模板里没找到 "state: null,"，无法注入测试数据');
   installGlobals(family);
   captured = null;
@@ -203,6 +213,28 @@ async function caseOne(name, state, family) {
   const emptyTexts = collect(captured, []);
   ok(emptyTexts.includes('还没配置数据'), '空数据: 有提示');
   ok(emptyTexts.some((t) => String(t).indexOf('CONFIG.state') >= 0), '空数据: 指明配置位置');
+
+  // GitHub 私有仓库：从 Contents API 取同一个文件
+  const GH_DATA = {
+    v: 1, name: '我的房贷', asOf: '',
+    loans: [{
+      id: 'gh1', name: '商贷', kind: '商贷', principal: 500000, annualRate: 3.8,
+      termMonths: 240, method: 'equal_installment', firstPaymentDate: '2024-06-20',
+      rateChanges: [], prepayments: [],
+    }],
+  };
+  GH_REPLY = { content: Buffer.from(JSON.stringify(GH_DATA), 'utf8').toString('base64') };
+  const wgh = await runWidget({ loans: [] }, 'medium', [
+    ["repo: '',", "repo: 'jerry98998/loan-data',"],
+    ["token: '',", "token: 'pat_x',"],
+  ]);
+  const tgh = collect(wgh, []);
+  const agh = E.analyze(GH_DATA, E.today());
+  ok(tgh.includes(wan(agh.totals.remainingPrincipal)), 'GitHub: 用的是仓库里的数据');
+  ok(tgh.some(function (t) {
+    return String(t).indexOf(agh.totals.periodsPaid + '/' + agh.totals.periodsTotal) >= 0;
+  }), 'GitHub: 期数来自仓库数据');
+  GH_REPLY = null;
 
   console.log('--- widget ----------');
   console.log('passed ' + pass + ' failed ' + fails.length);

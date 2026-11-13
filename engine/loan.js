@@ -240,7 +240,7 @@
     var asOfT = asOf.getTime();
     var rows = sim.rows;
     var paidPrincipal = 0, paidInterest = 0, paidPayment = 0;
-    var remainPrincipal = 0, remainInterest = 0, remainPayment = 0;
+    var remainInterest = 0, remainPayment = 0;
     var next = null, paidCount = 0;
     var i, r;
 
@@ -249,16 +249,30 @@
       r.paid = parseDate(r.date).getTime() <= asOfT;
       if (r.paid) {
         paidCount += 1;
-        paidPrincipal += r.principal + r.prepay;
+        paidPrincipal += r.principal;
         paidInterest += r.interest;
-        paidPayment += r.payment + r.prepay;
+        paidPayment += r.payment;
       } else {
-        remainPrincipal += r.principal;
         remainInterest += r.interest;
         remainPayment += r.payment;
         if (!next) next = r;
       }
     }
+
+    // 已发生的提前还款：按提前还款日判断，不等那一期还款日
+    var paidPrepay = 0;
+    for (i = 0; i < rows.length; i++) {
+      r = rows[i];
+      if (r.prepay > 0) {
+        var ppDate = parseDate(r.prepayDate);
+        if (ppDate && ppDate.getTime() <= asOfT) {
+          paidPrepay += r.prepay;
+          paidPayment += r.prepay;
+        }
+      }
+    }
+    paidPrincipal += paidPrepay;
+    var remainPrincipal = Math.max(0, sim.principal0 - paidPrincipal);
 
     // 已计提但未到还款日的利息（按天折算当期利息）
     var accrued = 0;
@@ -397,11 +411,11 @@
       next = { date: nextDate, amount: 0, principal: 0, interest: 0, items: [] };
       for (var n = 0; n < outLoans.length; n++) {
         var n2 = outLoans[n].stats.nextPayment;
-        if (n2 && n2.date === nextDate) {
+        if (n2) {
           next.amount += n2.payment;
           next.principal += n2.principal;
           next.interest += n2.interest;
-          next.items.push({ name: outLoans[n].loan.name, amount: n2.payment });
+          next.items.push({ name: outLoans[n].loan.name, amount: n2.payment, date: n2.date });
         }
       }
     }

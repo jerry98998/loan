@@ -147,5 +147,27 @@ ok('fmtWan 整数', E.fmtWan(500000) === '50万', E.fmtWan(500000));
 ok('fmtMonths', E.fmtMonths(28) === '2 年 4 个月', E.fmtMonths(28));
 ok('fmtPct', E.fmtPct(0.049) === '4.90%', E.fmtPct(0.049));
 
+/* ------------------------------------------------------------------ */
+section('10. 不同还款日 / 提前还款计入已还本息');
+const mix = E.analyze({
+  loans: [
+    Object.assign({}, base, { id: 'a', name: '公积金贷', kind: '公积金', principal: 600000, annualRate: 2.85, firstPaymentDate: '2024-03-20' }),
+    Object.assign({}, base, { id: 'b', name: '商贷', kind: '商贷', principal: 400000, annualRate: 4.2, firstPaymentDate: '2024-03-25' })
+  ]
+}, '2026-03-01');
+near('本期应还 = 两笔下一期之和', mix.totals.nextPayment.amount,
+  mix.loans[0].stats.monthlyPayment + mix.loans[1].stats.monthlyPayment, 0.01);
+ok('本期日期取最早的一笔', mix.totals.nextPayment.date === '2026-03-20', mix.totals.nextPayment.date);
+ok('本期明细 2 条（不等日期也合并）', mix.totals.nextPayment.items.length === 2);
+
+const pre = E.buildLoan(Object.assign({}, base, {
+  prepayments: [{ date: '2025-06-10', amount: 100000, mode: 'shorten_term' }]
+}), '2025-06-10');
+ok('还款日之前就先还了，当天即计入已还本息', pre.stats.paidTotal > 100000, pre.stats.paidTotal.toFixed(2));
+near('已还本金 = 已还本息 - 已还利息', pre.stats.paidPrincipal, pre.stats.paidTotal - pre.stats.paidInterest, 0.01);
+near('已还本金 + 剩余本金 = 总额', pre.stats.paidPrincipal + pre.stats.remainingPrincipal, 1000000, 0.01);
+near('已还本金含提前还款的 10 万', pre.stats.paidPrincipal,
+  pre.rows.filter(function (r) { return r.paid; }).reduce(function (s, r) { return s + r.principal; }, 0) + 100000, 0.5);
+
 console.log('\n' + (fail === 0 ? '全部通过' : '有失败') + '：' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

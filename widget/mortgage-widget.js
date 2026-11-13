@@ -5,8 +5,9 @@
  *   1. App Store 装 Scriptable（免费）
  *   2. 新建脚本，把本文件全部内容粘进去
  *   3. 改下面 CONFIG：
- *        · 零服务器：把网页「数据同步 → 复制小组件配置」的内容粘到 CONFIG.state
- *        · 有 Cloudflare Worker：填 CONFIG.remote.url / token，state 可留 null
+ *        · 零服务器：把网页「数据 → 复制小组件配置」的内容粘到 CONFIG.state
+ *        · 用 GitHub 私有仓库存数据：填 CONFIG.remote.repo / token（网页里点「上传到 GitHub」）
+ *        · 用 Cloudflare Worker：填 CONFIG.remote.url / token
  *   4. 长按桌面 → 左上角 + → Scriptable → 选本脚本 → 选小/中/大
  *
  * 说明：计算全部在本地完成（引擎已内联），不联网也能用；
@@ -20,10 +21,17 @@ const CONFIG = {
   // 本地数据（把网页「复制小组件配置」的结果粘在这里，形如 {"loans":[...]}）
   state: null,
 
-  // 云端数据（可选）。填了地址就优先读云端，失败自动回退到 state
+  // 云端数据（可选）。填了 repo 或 url 就优先读云端，失败自动回退到本地缓存 / state
   remote: {
+    // ① 用 GitHub 私有仓库存数据（网页「GitHub 同步」里上传的那个文件）
+    repo: '',     // 例：jerry98998/loan-data
+    path: 'state.json',
+    branch: 'main',
+    token: '',    // fine-grained PAT，只需 Contents: Read
+
+    // ② 或者用 Cloudflare Worker（worker/ 目录）
     url: '',      // 例：https://loan-sync.xxx.workers.dev
-    token: '',    // 和 worker 里设置的 TOKEN 一致
+    // 注：GitHub 和 Worker 的 token 不是一个东西，只填你要用的那一种
   },
 
   // 点小组件要打开的网址（可选，比如部署在 GitHub Pages 的看板）
@@ -43,6 +51,30 @@ const E = (typeof LoanEngine !== 'undefined') ? LoanEngine : globalThis.LoanEngi
 /* ---------------- 取数据 ---------------- */
 const CACHE_PATH = 'mortgage-widget-cache.json';
 
+/* 从 GitHub 私有仓库（Contents API）或 Cloudflare Worker 取同一份 JSON */
+async function fetchRemote(remote) {
+  if (remote.repo) {
+    const path = String(remote.path || 'state.json').replace(/^\/+/, '');
+    const url = 'https://api.github.com/repos/' + remote.repo.trim() + '/contents/' + path +
+                '?ref=' + encodeURIComponent(remote.branch || 'main');
+    const req = new Request(url);
+    req.timeoutInterval = 15;
+    req.headers = {
+      Authorization: 'Bearer ' + String(remote.token || '').trim(),
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    };
+    const file = await req.loadJSON();
+    if (!file || !file.content) throw new Error('github: empty file');
+    return JSON.parse(Data.fromBase64String(String(file.content).replace(/\s+/g, '')).toRawString());
+  }
+
+  const req = new Request(remote.url.replace(/\/+$/, '') + '/api/state');
+  req.timeoutInterval = 12;
+  if (remote.token) req.headers = { Authorization: 'Bearer ' + remote.token };
+  return req.loadJSON();
+}
+
 async function loadState() {
   const fm = FileManager.local();
   let cached = null;
@@ -53,12 +85,9 @@ async function loadState() {
   } catch (e) { cached = null; }
 
   const remote = CONFIG.remote || {};
-  if (remote.url) {
+  if (remote.repo || remote.url) {
     try {
-      const req = new Request(remote.url.replace(/\/+$/, '') + '/api/state');
-      req.timeoutInterval = 12;
-      if (remote.token) req.headers = { Authorization: 'Bearer ' + remote.token };
-      const st = await req.loadJSON();
+      const st = await fetchRemote(remote);
       if (st && Array.isArray(st.loans)) {
         fm.writeString(fm.joinPath(fm.documentsDirectory(), CACHE_PATH), JSON.stringify(st));
         return { state: st, source: '云端' };
