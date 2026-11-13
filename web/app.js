@@ -811,7 +811,7 @@
       branch: g.branch || 'main'
     };
     toast('正在上传…');
-    ghGetSha(g).then(function (sha) {
+    return ghGetSha(g).then(function (sha) {
       if (sha) body.sha = sha;
       var headers = ghHeaders(g);
       headers['Content-Type'] = 'application/json';
@@ -831,7 +831,7 @@
     var g = ghCfg();
     if (!ghCheck(g)) return;
     toast('正在拉取…');
-    fetch(ghUrl(g, true), { headers: ghHeaders(g) }).then(function (r) {
+    return fetch(ghUrl(g, true), { headers: ghHeaders(g) }).then(function (r) {
       if (!r.ok) return r.text().then(function (t) { throw new Error(ghErr(r, t)); });
       return r.json();
     }).then(function (j) {
@@ -943,6 +943,7 @@
     openEditor: openEditor,
     closeSheet: closeSheet,
     saveLoan: saveLoan,
-    analysis: analysis
+    analysis: analysis,
+    gh: { encode: b64encode, decode: b64decode, push: ghPush, pull: ghPull, url: ghUrl, headers: ghHeaders }
   };
 })();

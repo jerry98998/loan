@@ -300,14 +300,90 @@ fireClick({ 'data-action': 'reset' });
 eq(M.S.state.loans.length, 2, '恢复示例数据');
 ok(view().includes('剩余本金'), '重置后正常渲染');
 
+/* ---------------- 11. GitHub 同步 ---------------- */
+
+section('11. GitHub 同步');
+
+eq(M.gh.encode('{"a":1}'), 'eyJhIjoxfQ==', 'base64 编码与标准一致');
+const zhText = '贷款 ¥93.58万';
+eq(M.gh.decode(M.gh.encode(zhText)), zhText, '中文金额编解码往返一致');
+eq(M.gh.encode(''), '', '空字符串编码');
+eq(M.gh.decode(''), '', '空字符串解码');
+
+eq(M.gh.url({ repo: 'me/loan-data', path: 'state.json' }), 'https://api.github.com/repos/me/loan-data/contents/state.json', 'Contents URL');
+eq(M.gh.url({ repo: 'me/loan-data', path: 'd/state.json', branch: 'dev' }, true),
+  'https://api.github.com/repos/me/loan-data/contents/d/state.json?ref=dev', '带分支的读取 URL');
+
+const hdr = M.gh.headers({ repo: 'me/x', token: 'tok123' });
+eq(hdr.Authorization, 'Bearer tok123', 'Bearer 令牌');
+eq(hdr['X-GitHub-Api-Version'], '2022-11-28', 'API 版本头');
+
+/* 用一个假 fetch 走完整的 push / pull */
+const calls = [];
+let remote = null;
+function resp(status, obj) {
+  const text = JSON.stringify(obj);
+  return {
+    status: status,
+    ok: status >= 200 && status < 300,
+    text: function () { return Promise.resolve(text); },
+    json: function () { return Promise.resolve(JSON.parse(text)); }
+  };
+}
+global.fetch = function (url, opt) {
+  calls.push({ url: url, method: (opt && opt.method) || 'GET', body: opt && opt.body });
+  if ((opt && opt.method) === 'PUT') {
+    const body = JSON.parse(opt.body);
+    remote = { content: body.content.replace(/\n/g, ''), sha: 'abc1234567890' };
+    return Promise.resolve(resp(200, { commit: { sha: 'fedcba9876543' } }));
+  }
+  if (remote === null) return Promise.resolve(resp(404, { message: 'Not Found' }));
+  return Promise.resolve(resp(200, { content: remote.content, sha: remote.sha }));
+};
+
+const ghPushIn = async function () {
+  M.S.state.github = { repo: 'me/loan-data', path: 'state.json', branch: 'main', token: 'tok123' };
+  await M.gh.push();
+  return calls.slice();
+};
+
+const ghPullIn = async function () {
+  M.S.state.loans = [];
+  await M.gh.pull();
+  return M.S.state.loans.length;
+};
+
+(async function () {
+  const pushCalls = await ghPushIn();
+  eq(pushCalls.length, 2, 'push 先 GET 拿 sha 再 PUT');
+  eq(pushCalls[1].method, 'PUT', '第二次是 PUT');
+  const sent = JSON.parse(pushCalls[1].body);
+  eq(sent.branch, 'main', 'PUT 带分支');
+  ok(typeof sent.message === 'string' && sent.message.length > 0, 'PUT 带 commit message');
+  ok(sent.sha === undefined, '文件不存在时不带 sha（新建）');
+  const decoded = JSON.parse(M.gh.decode(sent.content));
+  eq(decoded.loans.length, 2, '上传内容含两笔贷款');
+  ok(M.S.state.loans.length === 2, '上传后本地数据不变');
+  eq(M.S.state.github.token, 'tok123', '上传后 token 仍保留');
+
+  const n = await ghPullIn();
+  eq(n, 2, '从 GitHub 拉回两笔贷款');
+  eq(M.S.state.github.repo, 'me/loan-data', '拉取后保留仓库配置');
+  eq(M.S.state.github.token, 'tok123', '拉取后保留 token');
+
+  finish();
+})();
+
 /* ---------------- 结果 ---------------- */
 
-console.log('\n' + '='.repeat(46));
-if (failures.length === 0) {
-  console.log('全部通过：' + pass + ' passed, 0 failed');
-  process.exit(0);
-} else {
-  console.log('失败：' + pass + ' passed, ' + failures.length + ' failed');
-  failures.forEach((f) => console.log('  - ' + f));
-  process.exit(1);
+function finish() {
+  console.log('\n' + '='.repeat(46));
+  if (failures.length === 0) {
+    console.log('全部通过：' + pass + ' passed, 0 failed');
+    process.exit(0);
+  } else {
+    console.log('失败：' + pass + ' passed, ' + failures.length + ' failed');
+    failures.forEach((f) => console.log('  - ' + f));
+    process.exit(1);
+  }
 }
