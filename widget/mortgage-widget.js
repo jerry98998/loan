@@ -247,7 +247,7 @@ function build(a, family) {
         line.addSpacer(6);
         text(line, l.name, 11, C.text);
         line.addSpacer();
-        text(line, (l.annualRate || 0).toFixed(2) + '%', 10, C.mute);
+        text(line, (item.stats.currentRate || l.annualRate || 0).toFixed(2) + '%', 10, C.mute);
         line.addSpacer(8);
         text(line, wan(item.stats.remainingPrincipal), 11, C.text, 'bold');
       });

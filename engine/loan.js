@@ -229,7 +229,8 @@
       if (balance <= CENT || p >= plannedEnd) break;
     }
 
-    return { ok: true, rows: rows, principal0: principal0, term: term, method: method, annualRate: annual, firstPaymentDate: fmtDate(first) };
+    return { ok: true, rows: rows, principal0: principal0, term: term, method: method, annualRate: annual,
+             rateChanges: rateChanges, firstPaymentDate: fmtDate(first) };
   }
 
   /* ------------------------------------------------------------------ *
@@ -274,6 +275,14 @@
     paidPrincipal += paidPrepay;
     var remainPrincipal = Math.max(0, sim.principal0 - paidPrincipal);
 
+    // 当前执行利率：按「生效日 <= 基准日」取最后一次利率调整，没有则用合同利率。
+    // 与「下一期执行利率」口径一致——用户看到的是即将按这个利率还款。
+    var currentRate = sim.annualRate;
+    var rcs = sim.rateChanges || [];
+    for (i = 0; i < rcs.length; i++) {
+      if (rcs[i].date.getTime() <= asOfT) currentRate = rcs[i].rate;
+    }
+
     // 已计提但未到还款日的利息（按天折算当期利息）
     var accrued = 0;
     if (next) {
@@ -299,6 +308,7 @@
         methodName: sim.method === 'equal_principal' ? '等额本金' : '等额本息',
         annualRate: sim.annualRate,
         rate: (next ? next.annualRate : sim.annualRate),
+        currentRate: currentRate,
         termMonths: sim.term,
         scheduleMonths: rows.length,
         firstPaymentDate: sim.firstPaymentDate,

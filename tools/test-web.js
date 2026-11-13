@@ -209,6 +209,18 @@ eq(M.S.state.asOf, '', '点「自动」后基准日被清空');
 eq(els.asOfLabel.textContent.indexOf('· 自动'), els.asOfLabel.textContent.length - 4, '顶栏回到自动');
 eq(M.analysis().asOf, E.today(), '清空后按今天算');
 
+section('3c. 利率调整后的展示');
+M.S.state.loans[0].rateChanges = [{ fromDate: '2026-01-01', annualRate: 2.35 }];
+M.setTab('home');
+const rh = view();
+ok(rh.includes('利率调整'), '分笔卡片出现「利率调整」行');
+ok(rh.includes('2.85% → <b class="mint">2.35%</b>'), '显示 原利率 → 当前利率');
+ok(rh.includes('<span class="pill">2.35%</span>'), '胶囊显示当前执行利率而不是合同利率');
+eq(M.analysis().loans[0].stats.currentRate, 2.35, 'currentRate 跟着利率调整走');
+eq(M.analysis().loans[0].stats.annualRate, 2.85, 'annualRate 仍是合同利率');
+delete M.S.state.loans[0].rateChanges;
+M.setTab('home');
+
 /* ---------------- 4. 数据 ---------------- */
 
 section('4. 数据同步');

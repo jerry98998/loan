@@ -178,8 +178,9 @@
     }
 
     var p = splitMoney(t.remainingPrincipal);
-    var avgRate = t.principal > 0
-      ? a.loans.reduce(function (s, x) { return s + x.loan.principal * x.loan.annualRate; }, 0) / t.principal
+    // 组合贷的利率：按剩余本金加权，取当前执行利率（不是合同起始利率）
+    var avgRate = t.remainingPrincipal > 0
+      ? a.loans.reduce(function (s, x) { return s + x.stats.remainingPrincipal * x.stats.currentRate; }, 0) / t.remainingPrincipal
       : 0;
     var h = '';
 
@@ -225,15 +226,18 @@
     /* 分笔 */
     a.loans.forEach(function (res) {
       var s = res.stats;
+      var rateChanged = Math.abs(s.currentRate - s.annualRate) > 1e-9;
       h += '<div class="card">' +
         '<div class="loan-head"><div class="loan-name">' + esc(res.loan.name) +
         '<span class="tag ' + (res.loan.kind === '公积金' ? 'gj' : '') + '">' + esc(res.loan.kind) + '</span></div>' +
-        '<span class="pill">' + s.annualRate.toFixed(2) + '%</span></div>' +
+        '<span class="pill">' + s.currentRate.toFixed(2) + '%</span></div>' +
         '<div class="rows">' +
         '<div class="row"><span class="k">剩余本金</span><span class="v">' + money(s.remainingPrincipal) + '</span></div>' +
         '<div class="row"><span class="k">下期应还</span><span class="v">' + money(s.monthlyPayment) + ' · ' + (s.nextPayment ? shortDate(s.nextPayment.date) : '—') + '</span></div>' +
         '<div class="row"><span class="k">已还期数</span><span class="v">' + s.periodsPaid + ' / ' + s.periodsTotal + ' 期</span></div>' +
         '<div class="row"><span class="k">已付利息</span><span class="v">' + money(s.paidInterest) + '</span></div>' +
+        (rateChanged ? '<div class="row"><span class="k">利率调整</span><span class="v">' +
+          s.annualRate.toFixed(2) + '% → <b class="mint">' + s.currentRate.toFixed(2) + '%</b></span></div>' : '') +
         '<div class="row"><span class="k">' + s.methodName + ' · ' + E.fmtMonths(s.periodsLeft) + '后结清</span><span class="v">' +
         '<button class="ghost-btn" data-action="edit-loan" data-id="' + esc(res.loan.id) + '">调整</button></span></div>' +
         '</div></div>';

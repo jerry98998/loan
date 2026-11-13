@@ -101,6 +101,13 @@ ok('第 25 期按新利率计息', Math.abs(row25.annualRate - 3.9) < 1e-9, row2
 near('第 25 期利息 = 余额 × 3.9%/12', row25.interest, f.rows[23].balance * 0.039 / 12, 0.01);
 ok('降息后月供下降', row25.payment < f.rows[23].payment, row25.payment.toFixed(2));
 near('总利息减少', f.stats.totalInterest < a.stats.totalInterest ? 1 : 0, 1, 0);
+near('合同利率不变', f.stats.annualRate, 4.9, 0);
+near('当前执行利率跟着变', f.stats.currentRate, 3.9, 0);
+near('下一期利率也是新利率', f.stats.rate, 3.9, 0);
+const fBefore = E.buildLoan(Object.assign({}, base, {
+  rateChanges: [{ fromDate: '2026-01-01', annualRate: 3.9 }]
+}), '2025-12-31');
+near('调整生效前当前利率仍是 4.9', fBefore.stats.currentRate, 4.9, 0);
 
 /* ------------------------------------------------------------------ */
 section('7. 组合贷：公积金 60 万 2.85% + 商贷 40 万 4.2%');

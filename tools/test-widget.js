@@ -183,7 +183,8 @@ async function caseOne(name, state, family) {
 
   if (family === 'large') {
     ok(texts.includes('公积金贷') && texts.includes('商贷'), name + ': 大号有分笔');
-    ok(texts.includes('2.85%') && texts.includes('4.20%'), name + ': 大号有利率');
+    const rates = a.loans.map((x) => (x.stats.currentRate || x.loan.annualRate).toFixed(2) + '%');
+    ok(rates.every((r) => texts.includes(r)), name + ': 大号有利率 ' + rates.join(' '));
   }
   return w;
 }
