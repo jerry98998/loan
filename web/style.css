@@ -315,6 +315,9 @@ h2 { font-size: 15px; margin: 0 0 12px; font-weight: 600; color: var(--text); }
 select.input { background-image: none; }
 .inline { display: flex; gap: 10px; }
 .inline > * { flex: 1; min-width: 0; }
+.asof-row > .input { flex: 1 1 auto; }
+.asof-row > .ghost-btn { flex: 0 0 auto; padding: 0 16px; }
+.ghost-btn[disabled] { opacity: 0.35; }
 .suffix { position: relative; }
 .suffix .input { padding-right: 44px; }
 .suffix .unit {

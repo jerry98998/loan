@@ -332,8 +332,12 @@
 
     h += '<div class="card"><h2>看板</h2>' +
       '<div class="field"><label>名称</label><input class="input" data-cfg="name" value="' + esc(S.state.name) + '"></div>' +
-      '<div class="field"><label>数据基准日（留空 = 今天）</label>' +
-      '<input class="input" type="date" data-cfg="asOf" value="' + esc(S.state.asOf || '') + '"></div>' +
+      '<div class="field"><label>数据基准日</label>' +
+      '<div class="inline asof-row">' +
+      '<input class="input" type="date" data-cfg="asOf" value="' + esc(S.state.asOf || '') + '">' +
+      '<button class="ghost-btn" data-action="asof-clear"' + (S.state.asOf ? '' : ' disabled') + '>自动</button>' +
+      '</div>' +
+      '<p class="hint">留空 = 按今天自动算；选了日期就固定在那一天。选完想改回自动，点右边的「自动」。</p></div>' +
       '<p class="hint">想看「如果提前还 20 万，明年这时候还剩多少」，把基准日改成未来的某天即可。</p>' +
       '</div>';
 
@@ -862,6 +866,12 @@
       return;
     }
     if (act === 'reload') { render(); return toast('已按当前日期重算'); }
+    if (act === 'asof-clear') {
+      S.state.asOf = '';
+      persist();
+      render();
+      return toast('已恢复自动（按今天）');
+    }
     if (act === 'export') return exportJson();
     if (act === 'import') return $('fileInput') && $('fileInput').click();
     if (act === 'copy') {

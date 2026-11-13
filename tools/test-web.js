@@ -195,6 +195,20 @@ ok(cfg.includes('添加一笔贷款'), '有添加按钮');
 ok(cfg.includes('等额本息'), '显示还款方式');
 ok(cfg.includes('2 笔'), '显示贷款笔数');
 
+section('3b. 数据基准日');
+eq(M.S.state.asOf, '', '默认没有基准日');
+ok(cfg.includes('data-action="asof-clear" disabled'), '没设基准日时「自动」按钮禁用');
+M.S.state.asOf = '2030-01-01';
+M.render();
+const cfg2 = view();
+ok(cfg2.includes('value="2030-01-01"'), '基准日回填进日期框');
+ok(!cfg2.includes('data-action="asof-clear" disabled'), '设了基准日后「自动」按钮可用');
+eq(M.analysis().asOf, '2030-01-01', '分析用的是这个基准日');
+fireClick({ 'data-action': 'asof-clear' });
+eq(M.S.state.asOf, '', '点「自动」后基准日被清空');
+eq(els.asOfLabel.textContent.indexOf('· 自动'), els.asOfLabel.textContent.length - 4, '顶栏回到自动');
+eq(M.analysis().asOf, E.today(), '清空后按今天算');
+
 /* ---------------- 4. 数据 ---------------- */
 
 section('4. 数据同步');
